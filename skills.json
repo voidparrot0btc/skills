@@ -1,6 +1,6 @@
 {
-  "version": "0.10.0",
-  "generated": "2026-02-27T00:28:33.792Z",
+  "version": "0.11.0",
+  "generated": "2026-03-01T00:31:55.146Z",
   "skills": [
     {
       "name": "aibtc-news",
@@ -138,6 +138,30 @@
         "l1",
         "write",
         "requires-funds"
+      ],
+      "userInvocable": false
+    },
+    {
+      "name": "business-dev",
+      "description": "Full-cycle revenue engine — prospecting, CRM pipeline management, closing deals, partnerships, and engineering-as-marketing. External sales via GitHub and web.",
+      "entry": "business-dev/business-dev.ts",
+      "arguments": [
+        "pipeline",
+        "prospect",
+        "qualify",
+        "close",
+        "follow-up",
+        "review",
+        "report",
+        "templates"
+      ],
+      "requires": [
+        "wallet",
+        "x402"
+      ],
+      "tags": [
+        "write",
+        "infrastructure"
       ],
       "userInvocable": false
     },
@@ -406,7 +430,7 @@
     },
     {
       "name": "signing",
-      "description": "Message signing and verification — SIP-018 structured Clarity data signing (on-chain verifiable), Stacks plain-text message signing (SIWS-compatible), Bitcoin message signing (BIP-137 for legacy/wrapped-SegWit, BIP-322 for native SegWit bc1q and Taproot bc1p), and BIP-340 Schnorr signing for Taproot multisig. All signing requires an unlocked wallet; hash and verify operations do not.",
+      "description": "Message signing and verification — SIP-018 structured Clarity data signing (on-chain verifiable), Stacks plain-text message signing (SIWS-compatible), Bitcoin message signing (BIP-137 for legacy/wrapped-SegWit, BIP-322 for native SegWit bc1q and Taproot bc1p), BIP-340 Schnorr signing for Taproot multisig, and Nostr event signing using NIP-06 key derivation. All signing requires an unlocked wallet; hash and verify operations do not.",
       "entry": "signing/signing.ts",
       "arguments": [
         "sip018-sign",
@@ -417,7 +441,8 @@
         "btc-sign",
         "btc-verify",
         "schnorr-sign-digest",
-        "schnorr-verify-digest"
+        "schnorr-verify-digest",
+        "nostr-sign-event"
       ],
       "requires": [
         "wallet"
