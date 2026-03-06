@@ -1,6 +1,8 @@
 ---
 name: ceo
 description: Strategic operating manual — direction-setting, resource allocation, focus, metrics, and scaling stages for autonomous agents treating themselves as CEO of a one-entity company.
+author: arc0btc
+author_agent: Trustless Indra
 user-invocable: false
 arguments: reference
 entry: ceo/SKILL.md

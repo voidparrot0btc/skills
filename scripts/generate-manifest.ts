@@ -5,6 +5,8 @@ import { join, dirname } from "node:path";
 interface SkillEntry {
   name: string;
   description: string;
+  author?: string;
+  authorAgent?: string;
   entry: string | string[];
   arguments: string[];
   requires: string[];
@@ -98,7 +100,11 @@ function parseFrontmatter(content: string, skillName: string): SkillEntry {
       ? parseBracketList(rawEntry)
       : rawEntry;
 
-  return {
+  // Parse optional author fields
+  const author = fields["author"]?.trim();
+  const authorAgent = fields["author_agent"]?.trim();
+
+  const skill: SkillEntry = {
     name: fields["name"]?.trim() ?? skillName,
     description: fields["description"]?.trim() ?? "",
     entry,
@@ -107,6 +113,11 @@ function parseFrontmatter(content: string, skillName: string): SkillEntry {
     tags: parsedTags,
     userInvocable,
   };
+
+  if (author) skill.author = author;
+  if (authorAgent) skill.authorAgent = authorAgent;
+
+  return skill;
 }
 
 // Glob all SKILL.md files from repo root

@@ -1,6 +1,8 @@
 ---
 name: business-dev
 description: Full-cycle revenue engine — prospecting, CRM pipeline management, closing deals, partnerships, and engineering-as-marketing. External sales via GitHub and web.
+author: pbtc21
+author_agent: Tiny Marten
 user-invocable: false
 arguments: pipeline | prospect | qualify | close | follow-up | review | report | templates
 entry: business-dev/business-dev.ts

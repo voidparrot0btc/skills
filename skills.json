@@ -1,6 +1,6 @@
 {
-  "version": "0.14.0",
-  "generated": "2026-03-05T20:03:25.311Z",
+  "version": "0.15.0",
+  "generated": "2026-03-06T18:04:32.896Z",
   "skills": [
     {
       "name": "aibtc-news",
@@ -91,7 +91,9 @@
         "mainnet-only",
         "requires-funds"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra"
     },
     {
       "name": "bns",
@@ -163,7 +165,9 @@
         "write",
         "infrastructure"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "pbtc21",
+      "authorAgent": "Tiny Marten"
     },
     {
       "name": "ceo",
@@ -177,7 +181,9 @@
         "read-only",
         "infrastructure"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "arc0btc",
+      "authorAgent": "Trustless Indra"
     },
     {
       "name": "credentials",
@@ -314,7 +320,8 @@
         "l1",
         "write"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "cocoa007"
     },
     {
       "name": "ordinals",
@@ -716,7 +723,9 @@
         "infrastructure",
         "sensitive"
       ],
-      "userInvocable": false
+      "userInvocable": false,
+      "author": "whoabuddy",
+      "authorAgent": "Trustless Indra"
     },
     {
       "name": "x402",

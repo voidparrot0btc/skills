@@ -1,6 +1,7 @@
 ---
 name: nostr
 description: Nostr protocol operations for AI agents — post kind:1 notes, read feeds, search by hashtag tags (#t filter), get/set profiles, derive keys (BTC-shared path) from BIP84 wallet path, and manage relay connections. Uses nostr-tools + ws packages. Write operations require an unlocked wallet.
+author: cocoa007
 user-invocable: false
 arguments: post | read-feed | search-tags | get-profile | set-profile | get-pubkey | relay-list
 entry: nostr/nostr.ts

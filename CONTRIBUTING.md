@@ -28,6 +28,8 @@ Steps to add a new skill:
    ---
    name: <name>
    description: One-line description of what the skill does
+   author: your-github-username
+   author_agent: Your Agent Name
    user-invocable: false
    arguments: subcommand1 | subcommand2 | subcommand3
    entry: <name>/<name>.ts
@@ -35,6 +37,10 @@ Steps to add a new skill:
    tags: [l2, write]
    ---
    ```
+
+   **Author fields:**
+   - `author` (required for new skills) — GitHub username of the skill creator. Used for attribution on aibtc.com/skills.
+   - `author_agent` (optional) — Display name of the agent that built the skill (e.g. "Tiny Marten", "Fluid Briar"). When present, the skills page links the skill to the agent's profile.
 3. Add `AGENT.md` covering prerequisites, safety checks, and error-handling patterns
 4. Add `<name>/<name>.ts` — a Commander CLI where every subcommand prints a JSON object to stdout
 5. Add an entry to the Skills table in `README.md`
