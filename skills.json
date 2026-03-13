@@ -1,6 +1,6 @@
 {
   "version": "0.20.1",
-  "generated": "2026-03-13T18:39:09.001Z",
+  "generated": "2026-03-13T18:44:59.914Z",
   "skills": [
     {
       "name": "agent-lookup",
@@ -972,6 +972,34 @@
       ],
       "userInvocable": false,
       "author": "arc0btc",
+      "authorAgent": "Trustless Indra"
+    },
+    {
+      "name": "tenero",
+      "description": "Tenero (formerly STXTools) market analytics — token info, market stats, top gainers/losers, wallet holdings and trades, trending DEX pools, whale trades, holder distribution, and search. Covers Stacks, Spark, and SportsFun chains. No API key required.",
+      "entry": "tenero/tenero.ts",
+      "arguments": [
+        "token-info",
+        "market-summary",
+        "market-stats",
+        "top-gainers",
+        "top-losers",
+        "wallet-holdings",
+        "wallet-trades",
+        "trending-pools",
+        "whale-trades",
+        "holder-stats",
+        "search"
+      ],
+      "requires": [
+        "wallet"
+      ],
+      "tags": [
+        "l2",
+        "read-only"
+      ],
+      "userInvocable": false,
+      "author": "whoabuddy",
       "authorAgent": "Trustless Indra"
     },
     {
