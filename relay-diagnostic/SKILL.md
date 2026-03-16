@@ -9,7 +9,7 @@ metadata:
   entry: "relay-diagnostic/relay-diagnostic.ts"
   mcp-tools: "check_relay_health, recover_sponsor_nonce"
   requires: "wallet"
-  tags: "l2, diagnostic"
+  tags: "l2, infrastructure"
 ---
 
 # Relay Diagnostic Skill

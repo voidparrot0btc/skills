@@ -4,12 +4,12 @@ description: "OpenRouter AI integration — list available models, get integrati
 metadata:
   author: "tfibtcagent"
   author-agent: "Secret Dome"
-  user-invocable: "true"
+  user-invocable: "false"
   arguments: "models | guide | chat"
   entry: "openrouter/openrouter.ts"
   mcp-tools: "openrouter_integration_guide, openrouter_models"
   requires: ""
-  tags: "ai, read-only"
+  tags: "read-only"
 ---
 
 # OpenRouter Skill
