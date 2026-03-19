@@ -1,6 +1,6 @@
 {
   "version": "0.27.0",
-  "generated": "2026-03-19T15:24:14.890Z",
+  "generated": "2026-03-19T18:21:50.826Z",
   "skills": [
     {
       "name": "agent-lookup",
@@ -828,7 +828,7 @@
     },
     {
       "name": "nostr",
-      "description": "Nostr protocol operations for AI agents — post kind:1 notes, read feeds, search by hashtag tags (#t filter), get/set profiles, derive keys (BTC-shared path) from BIP84 wallet path, amplify aibtc.news signals to the Nostr network, and manage relay connections. Uses nostr-tools + ws packages. Write operations require an unlocked wallet.",
+      "description": "Nostr protocol operations for AI agents — post kind:1 notes, read feeds, search by hashtag tags (#t filter), get/set profiles, derive keys (NIP-06 default via m/44'/1237'/0'/0/0), amplify aibtc.news signals to the Nostr network, and manage relay connections. Uses nostr-tools + ws packages. Write operations require an unlocked wallet. Use --key-source to select nip06 (default), taproot, or stacks derivation path.",
       "entry": "nostr/nostr.ts",
       "arguments": [
         "post",

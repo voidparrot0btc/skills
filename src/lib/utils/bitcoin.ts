@@ -314,6 +314,85 @@ export function deriveTaprootAddress(
 }
 
 /**
+ * Nostr key pair derivation result (NIP-06)
+ *
+ * SECURITY: This interface exposes the private key as Uint8Array.
+ * The private key should:
+ * - NEVER be serialized to hex string
+ * - NEVER be logged or stored persistently
+ * - Only be held in memory during signing operations
+ * - Be cleared after use (session lock)
+ */
+export interface NostrKeyPair {
+  /**
+   * NIP-06 private key as raw bytes (32 bytes)
+   * SECURITY: Never serialize. Use only for Nostr event signing.
+   */
+  privateKey: Uint8Array;
+  /**
+   * x-only public key as raw bytes (32 bytes)
+   * Used as the Nostr pubkey.
+   */
+  publicKeyBytes: Uint8Array;
+}
+
+/**
+ * Derive Nostr key pair from BIP39 mnemonic using NIP-06 path
+ *
+ * Follows NIP-06 derivation path: m/44'/1237'/0'/0/0
+ * - coin_type 1237 is the registered Nostr coin type (never varies by network)
+ * - The x-only public key (32 bytes) is used as the Nostr pubkey
+ *
+ * This is the standard derivation path used by Alby, Damus, Amethyst,
+ * and other Nostr clients. Using NIP-06 ensures the same mnemonic produces
+ * the same npub in any compatible Nostr application.
+ *
+ * SECURITY WARNING: This function returns the private key as Uint8Array.
+ * - NEVER serialize the private key to hex string
+ * - NEVER log or store the private key persistently
+ * - Only hold in memory during signing operations
+ * - Clear from memory when wallet is locked
+ *
+ * @param mnemonic - BIP39 mnemonic phrase (12 or 24 words)
+ * @returns Nostr private key and x-only public key (both as Uint8Array)
+ *
+ * @example
+ * ```typescript
+ * const { privateKey, publicKeyBytes } = deriveNostrKeyPair(mnemonic);
+ * const pubkey = getPublicKey(privateKey); // hex string for Nostr events
+ * ```
+ */
+export function deriveNostrKeyPair(mnemonic: string): NostrKeyPair {
+  // Convert mnemonic to seed
+  const seed = mnemonicToSeedSync(mnemonic);
+
+  // Create master key from seed
+  const masterKey = HDKey.fromMasterSeed(seed);
+
+  // NIP-06 derivation path: m/44'/1237'/0'/0/0
+  // Purpose: 44 (BIP-44 multi-account hierarchy)
+  // Coin type: 1237 (Nostr — registered coin type, never changes by network)
+  // Account: 0, Change: 0, Address index: 0
+  const derivedKey = masterKey.derive("m/44'/1237'/0'/0/0");
+
+  if (!derivedKey.privateKey) {
+    throw new Error("Failed to derive NIP-06 private key");
+  }
+
+  if (!derivedKey.publicKey) {
+    throw new Error("Failed to derive NIP-06 public key");
+  }
+
+  // Get private key as Uint8Array (never convert to hex)
+  const privateKey = new Uint8Array(derivedKey.privateKey);
+
+  // Get x-only public key (32 bytes — strip the 1-byte prefix from compressed pubkey)
+  const publicKeyBytes = new Uint8Array(derivedKey.publicKey.slice(1));
+
+  return { privateKey, publicKeyBytes };
+}
+
+/**
  * Derive Bitcoin L1 Taproot key pair from BIP39 mnemonic (includes private key for signing)
  *
  * Follows BIP86 derivation path:

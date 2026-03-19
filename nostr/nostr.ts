@@ -4,10 +4,14 @@
  * Nostr protocol operations for AI agents — post notes, read feeds,
  * search by hashtags, manage profiles, and derive keys.
  *
- * Key derivation (BTC-shared): BIP84 m/84'/0'/0'/0/0 → secp256k1 privkey → x-only pubkey
- * Same keypair as BTC wallet (npub ↔ taproot address share the same key).
- * NOTE: This is NOT NIP-06 (which uses m/44'/1237'/0'/0/0). We intentionally
- * reuse the BTC key so the agent has a single identity across both protocols.
+ * Key derivation (default — NIP-06): m/44'/1237'/0'/0/0 → secp256k1 privkey → x-only pubkey
+ * This is the standard NIP-06 path used by Alby, Damus, Amethyst, and other Nostr clients.
+ * The same mnemonic produces the same npub in any NIP-06-compatible application.
+ *
+ * Override with --key-source:
+ *   --key-source nip06    (default) BIP-39 mnemonic → m/44'/1237'/0'/0/0
+ *   --key-source taproot  BIP-39 mnemonic → m/86'/0'/0'/0/0 (same key as bc1p address)
+ *   --key-source stacks   BIP-39 mnemonic → m/84'/0'/0'/0/0 (backward-compat BTC segwit path)
  *
  * Usage: bun run nostr/nostr.ts <subcommand> [options]
  */
@@ -34,26 +38,38 @@ const DEFAULT_RELAYS = ["wss://relay.damus.io", "wss://nos.lol"];
 
 const WS_TIMEOUT_MS = 10_000;
 
+/** NIP-06 standard derivation path for Nostr keys */
+const NIP06_DERIVATION_PATH = "m/44'/1237'/0'/0/0";
+
+/** BIP-86 Taproot derivation path (bc1p... address) */
+const TAPROOT_DERIVATION_PATH = "m/86'/coin_type'/0'/0/0";
+
+/** BIP-84 SegWit derivation path (bc1q... address, backward-compat) */
+const SEGWIT_DERIVATION_PATH = "m/84'/coin_type'/0'/0/0";
+
+/** Supported key source values for --key-source flag */
+type KeySource = "nip06" | "taproot" | "stacks";
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Key Derivation (BTC-shared)
+ * Derive Nostr keys from the active wallet account.
  *
- * BIP39 mnemonic → BIP32 seed → m/84'/0'/0'/0/0 → 32-byte secp256k1 private key
+ * Respects the --key-source flag:
+ *   nip06    (default) — account.nostrPrivateKey derived at m/44'/1237'/0'/0/0
+ *   taproot  — account.taprootPrivateKey derived at m/86'/0'/0'/0/0 (x-only, same as bc1p key)
+ *   stacks   — account.btcPrivateKey derived at m/84'/0'/0'/0/0 (backward-compat)
  *
- * The private key is used directly as the Nostr secret key (sk).
- * The x-only public key (32 bytes) is the Nostr pubkey.
- *
- * This is the same key used for the BTC taproot address, so:
- *   npub ↔ BTC address share the same underlying keypair.
- *
- * NOTE: This is NOT NIP-06 derivation (which uses m/44'/1237'/0'/0/0).
- * The BTC path is intentional — agents get a shared identity across
- * Bitcoin and Nostr from a single mnemonic.
+ * All three key types are pre-derived during wallet unlock and stored on the Account object.
  */
-function deriveNostrKeys(): { sk: Uint8Array; pubkey: string; npub: string } {
+function deriveNostrKeys(keySource: KeySource = "nip06"): {
+  sk: Uint8Array;
+  pubkey: string;
+  npub: string;
+  derivationPath: string;
+} {
   const walletManager = getWalletManager();
   const account = walletManager.getActiveAccount();
   if (!account) {
@@ -62,13 +78,34 @@ function deriveNostrKeys(): { sk: Uint8Array; pubkey: string; npub: string } {
     );
   }
 
-  // The BIP84 derivation at m/84'/0'/0'/0/0 gives us a secp256k1 private key.
-  // We use the raw 32-byte private key as the Nostr secret key.
-  const sk = account.privateKey; // Uint8Array (32 bytes)
+  let sk: Uint8Array;
+  let derivationPath: string;
+
+  if (keySource === "taproot") {
+    if (!account.taprootPrivateKey) {
+      throw new Error("Taproot private key not available in current session");
+    }
+    sk = account.taprootPrivateKey;
+    derivationPath = TAPROOT_DERIVATION_PATH.replace("coin_type", account.network === "mainnet" ? "0" : "1");
+  } else if (keySource === "stacks") {
+    if (!account.btcPrivateKey) {
+      throw new Error("BTC segwit private key not available in current session");
+    }
+    sk = account.btcPrivateKey;
+    derivationPath = SEGWIT_DERIVATION_PATH.replace("coin_type", account.network === "mainnet" ? "0" : "1");
+  } else {
+    // nip06 (default)
+    if (!account.nostrPrivateKey) {
+      throw new Error("NIP-06 Nostr private key not available in current session");
+    }
+    sk = account.nostrPrivateKey;
+    derivationPath = NIP06_DERIVATION_PATH;
+  }
+
   const pubkey = getPublicKey(sk); // hex string (x-only, 32 bytes)
   const npub = nip19.npubEncode(pubkey);
 
-  return { sk, pubkey, npub };
+  return { sk, pubkey, npub, derivationPath };
 }
 
 /**
@@ -181,9 +218,14 @@ program
   .name("nostr")
   .description(
     "Nostr protocol operations — post notes, read feeds, search by hashtag tags, " +
-      "get/set profiles, derive keys (BTC-shared path), and manage relay connections."
+      "get/set profiles, derive keys (NIP-06 default), and manage relay connections."
   )
-  .version("0.1.0");
+  .version("0.2.0")
+  .option(
+    "--key-source <source>",
+    "Key derivation source: nip06 (default, m/44'/1237'/0'/0/0), taproot (m/86'/0'/0'/0/0), stacks (m/84'/0'/0'/0/0)",
+    "nip06"
+  );
 
 // ---------------------------------------------------------------------------
 // post
@@ -196,7 +238,8 @@ program
   .option("--tags <hashtags>", "Comma-separated hashtags (e.g. Bitcoin,sBTC)")
   .action(async (opts: { content: string; tags?: string }) => {
     try {
-      const { sk, pubkey } = deriveNostrKeys();
+      const keySource = program.opts().keySource as KeySource;
+      const { sk, pubkey } = deriveNostrKeys(keySource);
 
       const tags: string[][] = [];
       if (opts.tags) {
@@ -371,7 +414,8 @@ program
       lud16?: string;
     }) => {
       try {
-        const { sk, pubkey } = deriveNostrKeys();
+        const keySource = program.opts().keySource as KeySource;
+        const { sk, pubkey } = deriveNostrKeys(keySource);
 
         // Fetch existing profile to merge (kind:0 is replaceable — publishing
         // a new event wipes fields not included). This prevents set-profile
@@ -430,17 +474,24 @@ program
 program
   .command("get-pubkey")
   .description(
-    "Derive and display your Nostr public key from the BIP84 wallet (BTC-shared key). " +
-      "Requires unlocked wallet."
+    "Derive and display your Nostr public key. Defaults to NIP-06 (m/44'/1237'/0'/0/0). " +
+      "Use --key-source to select a different derivation path. Requires unlocked wallet."
   )
   .action(async () => {
     try {
-      const { pubkey, npub } = deriveNostrKeys();
+      const keySource = program.opts().keySource as KeySource;
+      const { pubkey, npub, derivationPath } = deriveNostrKeys(keySource);
       printJson({
         npub,
         hex: pubkey,
-        derivationPath: "m/84'/0'/0'/0/0",
-        note: "Same secp256k1 key as BTC wallet. x-only pubkey used for Nostr identity.",
+        keySource,
+        derivationPath,
+        note:
+          keySource === "nip06"
+            ? "NIP-06 standard path — compatible with Alby, Damus, Amethyst, and other Nostr clients."
+            : keySource === "taproot"
+            ? "Taproot x-only key — same keypair as bc1p address; externally verifiable from taproot address."
+            : "BTC SegWit path (m/84') — backward-compatible with original nostr skill (pre NIP-06 update).",
       });
     } catch (err) {
       handleError(err);
@@ -475,7 +526,8 @@ program
   .option("--relays <urls>", "Comma-separated relay URLs (overrides defaults)")
   .action(async (opts: { signalId: string; beat?: string; relays?: string }) => {
     try {
-      const { sk, pubkey } = deriveNostrKeys();
+      const keySource = program.opts().keySource as KeySource;
+      const { sk, pubkey } = deriveNostrKeys(keySource);
       const relays = opts.relays
         ? opts.relays.split(",").map((r: string) => r.trim())
         : DEFAULT_RELAYS;
@@ -541,7 +593,8 @@ program
       relays?: string;
     }) => {
       try {
-        const { sk, pubkey } = deriveNostrKeys();
+        const keySource = program.opts().keySource as KeySource;
+        const { sk, pubkey } = deriveNostrKeys(keySource);
         const relays = opts.relays
           ? opts.relays.split(",").map((r: string) => r.trim())
           : DEFAULT_RELAYS;

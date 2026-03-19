@@ -349,6 +349,8 @@ interface SerializedAccount {
   btcPublicKey?: string;
   taprootPrivateKey?: string;
   taprootPublicKey?: string;
+  nostrPrivateKey?: string;
+  nostrPublicKey?: string;
   sponsorApiKey?: string;
   network: Network;
 }

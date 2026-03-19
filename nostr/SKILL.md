@@ -1,6 +1,6 @@
 ---
 name: nostr
-description: "Nostr protocol operations for AI agents — post kind:1 notes, read feeds, search by hashtag tags (#t filter), get/set profiles, derive keys (BTC-shared path) from BIP84 wallet path, amplify aibtc.news signals to the Nostr network, and manage relay connections. Uses nostr-tools + ws packages. Write operations require an unlocked wallet."
+description: "Nostr protocol operations for AI agents — post kind:1 notes, read feeds, search by hashtag tags (#t filter), get/set profiles, derive keys (NIP-06 default via m/44'/1237'/0'/0/0), amplify aibtc.news signals to the Nostr network, and manage relay connections. Uses nostr-tools + ws packages. Write operations require an unlocked wallet. Use --key-source to select nip06 (default), taproot, or stacks derivation path."
 metadata:
   author: "cocoa007, sonic-mast"
   author-agent: "Fluid Briar, Sonic Mast"
@@ -13,12 +13,35 @@ metadata:
 
 # Nostr Skill
 
-Nostr protocol operations for AI agents. Post notes, read feeds, search by hashtags, manage profiles, and derive keys (BTC-shared path) from the BTC wallet.
+Nostr protocol operations for AI agents. Post notes, read feeds, search by hashtags, manage profiles, and derive keys from the wallet using the NIP-06 standard path by default.
+
+## Global Options
+
+### --key-source
+
+Selects the key derivation path for all write operations. Applies to `post`, `set-profile`, `get-pubkey`, `amplify-signal`, and `amplify-text`.
+
+| Value | Path | Description |
+|-------|------|-------------|
+| `nip06` (default) | `m/44'/1237'/0'/0/0` | NIP-06 standard — compatible with Alby, Damus, Amethyst |
+| `taproot` | `m/86'/coin_type'/0'/0/0` | Taproot x-only key — same keypair as bc1p address |
+| `stacks` | `m/84'/coin_type'/0'/0/0` | BTC SegWit path — backward-compat with pre-NIP-06 skill |
+
+```bash
+# Default: NIP-06
+bun run nostr/nostr.ts get-pubkey
+
+# Taproot identity (same key as bc1p address, externally verifiable)
+bun run nostr/nostr.ts --key-source taproot get-pubkey
+
+# Backward-compat: original BTC segwit derivation
+bun run nostr/nostr.ts --key-source stacks get-pubkey
+```
 
 ## Usage
 
 ```
-bun run nostr/nostr.ts <subcommand> [options]
+bun run nostr/nostr.ts [--key-source nip06|taproot|stacks] <subcommand> [options]
 ```
 
 ## Subcommands
@@ -29,6 +52,7 @@ Post a kind:1 note to configured relays. Requires unlocked wallet.
 
 ```bash
 bun run nostr/nostr.ts post --content "Hello from an AI agent" --tags "Bitcoin,sBTC,Stacks"
+bun run nostr/nostr.ts --key-source taproot post --content "Signed with taproot key"
 ```
 
 Output:
@@ -89,18 +113,31 @@ Output: event ID and publish status.
 
 ### get-pubkey
 
-Derive and display your Nostr public key from BIP84 wallet. Requires unlocked wallet.
+Derive and display your Nostr public key. Defaults to NIP-06 path. Requires unlocked wallet.
 
 ```bash
 bun run nostr/nostr.ts get-pubkey
 ```
 
-Output:
+Output (NIP-06 default):
 ```json
 {
   "npub": "npub19drq8533690hw80d8ekpacjs67dan2y4pka09emqzh2mkhr9uxvqd4k3nn",
   "hex": "2b4603d231d15f771ded3e6c1ee250d79bd9a8950dbaf2e76015d5bb5c65e198",
-  "derivationPath": "m/84'/0'/0'/0/0"
+  "keySource": "nip06",
+  "derivationPath": "m/44'/1237'/0'/0/0",
+  "note": "NIP-06 standard path — compatible with Alby, Damus, Amethyst, and other Nostr clients."
+}
+```
+
+Output with `--key-source taproot`:
+```json
+{
+  "npub": "npub1...",
+  "hex": "dbe4d9fb...",
+  "keySource": "taproot",
+  "derivationPath": "m/86'/0'/0'/0/0",
+  "note": "Taproot x-only key — same keypair as bc1p address; externally verifiable from taproot address."
 }
 ```
 
@@ -156,24 +193,36 @@ Output: `{success, eventId, pubkey, relays}`
 
 ## Technical Details
 
-### Key Derivation (BTC-shared)
+### Key Derivation
 
-The Nostr private key is derived from the same BIP-84 HD wallet path used for BTC:
+The nostr skill supports three derivation paths via the `--key-source` flag:
 
 ```
-BIP39 mnemonic → BIP32 seed → m/84'/0'/0'/0/0 → secp256k1 private key
+BIP39 mnemonic → BIP32 seed → derivation path → 32-byte secp256k1 private key → x-only pubkey
 ```
 
-- The 32-byte private key is used directly as the Nostr secret key
-- The corresponding x-only public key (32 bytes) becomes the Nostr pubkey
-- This means the agent's npub and BTC taproot address share the same underlying keypair
-- Event signing uses `finalizeEvent` from `nostr-tools/pure`
+**NIP-06 (default):** `m/44'/1237'/0'/0/0`
+- Standard Nostr path — coin_type 1237 is registered for Nostr
+- Same mnemonic produces the same npub in Alby, Damus, Amethyst, Snort, etc.
+- Recommended for agents that share notes publicly or interact with human Nostr users
+- Key domain is separate from BTC, reducing cross-protocol exposure
+
+**Taproot:** `m/86'/coin_type'/0'/0/0`
+- x-only pubkey is identical to the Taproot internal key (bc1p address)
+- Externally verifiable: anyone with the agent's bc1p address can derive the expected npub
+- Recommended for agents with on-chain identity (erc8004, heartbeats, multisig)
+
+**Stacks (backward-compat):** `m/84'/coin_type'/0'/0/0`
+- Original derivation used before the NIP-06 update
+- Only needed if the agent already has a published Nostr identity from the old path
+- Not recommended for new agents
 
 ### Security
 
-- **Always delete mnemonic from temp files after key derivation**
-- Mnemonic is written to `/tmp/.mnemonic_tmp`, used, then immediately removed
+- All three private keys are derived during `wallet unlock` and stored in the in-memory session
+- Private keys are zeroed when the wallet is locked
 - Never log or persist the private key
+- The `--key-source` flag only selects which pre-derived key to use for signing
 
 ### Relay Configuration
 

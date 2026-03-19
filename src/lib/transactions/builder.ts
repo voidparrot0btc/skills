@@ -31,6 +31,16 @@ export interface Account extends WalletAddresses {
    * Taproot internal public key as raw bytes (32 bytes, x-only) for building Taproot transactions.
    */
   taprootPublicKey?: Uint8Array;
+  /**
+   * Nostr NIP-06 private key as raw bytes (32 bytes), derived at m/44'/1237'/0'/0/0.
+   * SECURITY: Never serialize. Only held in memory during session.
+   */
+  nostrPrivateKey?: Uint8Array;
+  /**
+   * Nostr NIP-06 x-only public key as raw bytes (32 bytes).
+   * Used as the Nostr pubkey for NIP-06 identity.
+   */
+  nostrPublicKey?: Uint8Array;
   network: Network;
 }
 
