@@ -28,6 +28,15 @@ export interface AccountInfo {
   nonceProof: string;
 }
 
+/** Extended nonce info from /extended/v1/address/{addr}/nonces */
+export interface NonceInfo {
+  last_mempool_tx_nonce: number | null;
+  last_executed_tx_nonce: number;
+  possible_next_nonce: number;
+  detected_missing_nonces: number[];
+  detected_mempool_nonces: number[];
+}
+
 export interface StxBalance {
   balance: string;
   total_sent: string;
@@ -411,6 +420,15 @@ export class HiroApiService {
   async getAccountNonce(address: string): Promise<number> {
     const info = await this.getAccountInfo(address);
     return info.nonce;
+  }
+
+  /**
+   * Get extended nonce info including mempool and missing nonce detection.
+   * Uses the /extended/v1/address/{addr}/nonces endpoint which accounts for
+   * mempool transactions and detects nonce gaps.
+   */
+  async getNonceInfo(address: string): Promise<NonceInfo> {
+    return this.fetch<NonceInfo>(`/extended/v1/address/${address}/nonces`);
   }
 
   // ==========================================================================

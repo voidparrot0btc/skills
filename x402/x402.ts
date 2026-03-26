@@ -434,33 +434,18 @@ program
           );
         }
 
-        // Parse payment requirements from 402 response
+        // Step 2: Parse payment requirements from 402 response
         const paymentHeader = initialRes.headers.get("payment-required");
         if (!paymentHeader) {
           throw new Error("402 response missing payment-required header");
         }
 
-        // Import x402 protocol utilities
-        const {
-          decodePaymentRequired,
-          encodePaymentPayload,
-          X402_HEADERS,
-        } = await import("../src/lib/utils/x402-protocol.js");
-        const {
-          makeContractCall,
-          uintCV,
-          principalCV,
-          noneCV,
-        } = await import("@stacks/transactions");
-        const {
-          getContracts,
-          parseContractId,
-        } = await import("../src/lib/config/contracts.js");
-        const { getStacksNetwork } = await import("../src/lib/config/networks.js");
-        const { createFungiblePostCondition } = await import(
-          "../src/lib/transactions/post-conditions.js"
+        const { decodePaymentRequired } = await import(
+          "../src/lib/utils/x402-protocol.js"
         );
-        const { getHiroApi } = await import("../src/lib/services/hiro-api.js");
+        const { getExplorerTxUrl } = await import(
+          "../src/lib/config/networks.js"
+        );
 
         const paymentRequired = decodePaymentRequired(paymentHeader);
         if (
@@ -471,99 +456,51 @@ program
           throw new Error("No accepted payment methods in 402 response");
         }
         const accept = paymentRequired.accepts[0];
-        const amount = BigInt(accept.amount);
 
-        // Build sponsored sBTC transfer
-        const contracts = getContracts(NETWORK);
-        const { address: contractAddress, name: contractName } =
-          parseContractId(contracts.SBTC_TOKEN);
-        const networkName = getStacksNetwork(NETWORK);
+        // Step 3: Compute SHA-256 content hash for on-chain delivery receipt
+        const contentBytes = new TextEncoder().encode(opts.content);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", contentBytes);
+        const contentHash = Buffer.from(new Uint8Array(hashBuffer)).toString("hex");
 
-        const postCondition = createFungiblePostCondition(
-          account.address,
-          contracts.SBTC_TOKEN,
-          "sbtc-token",
-          "eq",
-          amount
+        // Step 4: Execute with retry logic (handles nonce conflicts, 409s, 502/503)
+        const { executeInboxWithRetry } = await import(
+          "../src/lib/utils/x402-retry.js"
         );
 
-        // Get current nonce
-        const hiro = getHiroApi(NETWORK);
-        const accountInfo = await hiro.getAccountInfo(account.address);
-        const nonce = BigInt(accountInfo.nonce);
-
-        const transaction = await makeContractCall({
-          contractAddress,
-          contractName,
-          functionName: "transfer",
-          functionArgs: [
-            uintCV(amount),
-            principalCV(account.address),
-            principalCV(accept.payTo),
-            noneCV(),
-          ],
-          senderKey: account.privateKey,
-          network: networkName,
-          postConditions: [postCondition],
-          sponsored: true,
-          fee: 0n,
-          nonce,
-        });
-
-        const txHex = "0x" + transaction.serialize();
-
-        // Encode payment payload
-        const paymentSignature = encodePaymentPayload({
-          x402Version: 2,
-          resource: paymentRequired.resource,
-          accepted: accept,
-          payload: { transaction: txHex },
-        });
-
-        // Send with payment header
-        const finalRes = await fetch(inboxUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            [X402_HEADERS.PAYMENT_SIGNATURE]: paymentSignature,
+        const result = await executeInboxWithRetry({
+          inboxUrl,
+          body,
+          paymentRequired,
+          accept,
+          account: {
+            address: account.address,
+            privateKey: account.privateKey,
           },
-          body: JSON.stringify(body),
+          network: NETWORK,
+          contentHash,
         });
 
-        const responseText = await finalRes.text();
-        let responseData: unknown;
-        try {
-          responseData = JSON.parse(responseText);
-        } catch {
-          responseData = { raw: responseText };
-        }
-
-        if (finalRes.status === 201 || finalRes.status === 200) {
-          const settlementHeader = finalRes.headers.get(X402_HEADERS.PAYMENT_RESPONSE);
-          const { decodePaymentResponse } = await import("../src/lib/utils/x402-protocol.js");
-          const settlement = decodePaymentResponse(settlementHeader);
-          const txid = settlement?.transaction;
-
-          printJson({
-            success: true,
-            message: "Message delivered",
-            recipient: {
-              btcAddress: opts.recipientBtcAddress,
-              stxAddress: opts.recipientStxAddress,
+        // Step 5: Format and print result
+        printJson({
+          success: true,
+          message: result.recovered
+            ? "Message delivered (auto-recovered)"
+            : "Message delivered",
+          recipient: {
+            btcAddress: opts.recipientBtcAddress,
+            stxAddress: opts.recipientStxAddress,
+          },
+          contentLength: opts.content.length,
+          contentHash,
+          inbox: result.responseData,
+          ...(result.settlementTxid && {
+            payment: {
+              txid: result.settlementTxid,
+              amount: accept.amount + " sats sBTC",
+              explorer: getExplorerTxUrl(result.settlementTxid, NETWORK),
             },
-            contentLength: opts.content.length,
-            inbox: responseData,
-            ...(txid && {
-              payment: {
-                txid,
-                amount: accept.amount + " sats sBTC",
-              },
-            }),
-          });
-          return;
-        }
-
-        throw new Error(`Message delivery failed (${finalRes.status}): ${responseText}`);
+          }),
+        });
       } catch (error) {
         handleError(error);
       }
