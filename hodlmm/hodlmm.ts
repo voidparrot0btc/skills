@@ -486,4 +486,98 @@ program.command("move-liquidity <pool_id> <from_bin_id> <to_bin_offset> <amount>
     } catch (e: any) { err(e.message, { pool_id }); }
   });
 
+// monitor
+program.command("monitor <pool_id>")
+  .option("--address <address>", "Stacks address (defaults to active wallet)")
+  .option("--range <bins>", "Dead bin threshold — bins away from active before flagging", "5")
+  .description("Monitor LP position health — returns hold | rebalance | check signal")
+  .action(async (pool_id, opts) => {
+    try {
+      let address = opts.address;
+      if (!address) {
+        const wallet = loadWallet();
+        address = wallet.stacksAddress;
+      }
+      const deadThreshold = parseInt(opts.range);
+
+      const [poolData, poolBins, userPositions] = await Promise.all([
+        apiFetch(`/app/v1/pools/${pool_id}`),
+        apiFetch(`/quotes/v1/bins/${pool_id}`),
+        apiFetch(`/app/v1/users/${address}/positions/${pool_id}/bins`).catch(() => ({ bins: [] })),
+      ]);
+
+      const activeBin: number = poolData.active_bin_id;
+      const bins: any[] = userPositions.bins || [];
+      const binsWithLiq = bins.filter((b: any) => b.user_liquidity > 0);
+
+      if (binsWithLiq.length === 0) {
+        out({ success: true, pool_id, address, verdict: "no_position", message: "No active liquidity found in this pool." });
+        return;
+      }
+
+      // Classify bins
+      const inRange: any[] = [];
+      const deadBins: any[] = [];
+
+      for (const bin of binsWithLiq) {
+        const distance = Math.abs(bin.bin_id - activeBin);
+        const poolBin = poolBins.bins.find((b: any) => b.bin_id === bin.bin_id);
+        const reserveX = Number(poolBin?.reserve_x ?? 0);
+        const reserveY = Number(poolBin?.reserve_y ?? 0);
+        const earning = distance <= deadThreshold;
+
+        const entry = {
+          bin_id: bin.bin_id,
+          distance_from_active: distance,
+          user_liquidity: bin.user_liquidity,
+          reserve_x: reserveX,
+          reserve_y: reserveY,
+          earning,
+          side: bin.bin_id < activeBin ? "below (y-only)" : bin.bin_id > activeBin ? "above (x-only)" : "active",
+        };
+
+        if (earning) inRange.push(entry);
+        else deadBins.push(entry);
+      }
+
+      // Total value estimate
+      const totalUserLiq = binsWithLiq.reduce((s: number, b: any) => s + b.user_liquidity, 0);
+      const deadLiq = deadBins.reduce((s: number, b: any) => s + b.user_liquidity, 0);
+      const deadPct = Math.round((deadLiq / totalUserLiq) * 100);
+
+      // Verdict
+      let verdict: string;
+      let message: string;
+
+      if (deadBins.length === 0) {
+        verdict = "hold";
+        message = `All ${inRange.length} bin(s) are within ${deadThreshold} of active bin ${activeBin}. Yield is flowing.`;
+      } else if (deadPct >= 50) {
+        verdict = "rebalance";
+        message = `${deadPct}% of your liquidity is in dead bins (>${deadThreshold} from active bin ${activeBin}). Move to active range to resume earning.`;
+      } else {
+        verdict = "check";
+        message = `${deadBins.length} dead bin(s) detected (${deadPct}% of liquidity). Monitor closely or rebalance if active bin continues moving.`;
+      }
+
+      out({
+        success: true,
+        pool_id,
+        address,
+        verdict,
+        message,
+        active_bin: activeBin,
+        dead_threshold: deadThreshold,
+        summary: {
+          total_bins: binsWithLiq.length,
+          in_range_bins: inRange.length,
+          dead_bins: deadBins.length,
+          dead_liquidity_pct: deadPct,
+        },
+        in_range: inRange,
+        dead: deadBins,
+      });
+    } catch (e: any) { err(e.message, { pool_id }); }
+  });
+
 program.parse();
