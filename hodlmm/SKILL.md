@@ -2,7 +2,7 @@ name: hodlmm
 description: Bitflow HODLMM concentrated liquidity — query pools, bins, price history, user positions, get swap quotes, and manage liquidity (add/withdraw/move) on Bitflow's Bitcoin DeFi engine on Stacks. Mainnet-only.
 metadata:
 user-invocable: "false"
-arguments: "pools | pool | pairs | tokens | bins | bin-price-history | position | position-bins | quote | health | add-liquidity | withdraw-liquidity | move-liquidity"
+arguments: "pools | pool | pairs | tokens | bins | bin-price-history | position | position-bins | quote | health | monitor | add-liquidity | withdraw-liquidity | move-liquidity"
 entry: "hodlmm/hodlmm.ts"
 requires: "wallet, settings"
 tags: "defi, l2, mainnet-only, read-only, write, requires-funds"
